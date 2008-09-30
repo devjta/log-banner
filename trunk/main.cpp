@@ -55,6 +55,7 @@ static int RELEASE_BANS_SEC = 60  * 10; // == 10 Minuten,
 static int START_FROM_TOKEN = 3; //Bei welchem Token man anfängt das Syslog auszuwerten
 
 
+
 /*
 ** Funktion ist für das Logging zuständig
 */
@@ -387,7 +388,27 @@ bool isRegisteredProgram(char *line)
 
 
 /**
-** Programm liest die 
+** Liefert das Programm an der jeweiligen ID zurück
+*/
+Program* getProgram(int count)
+{
+	//wenn zu wenig drinnen ist, dann erhöhe
+	while(count > programs.size())
+	{
+		programs.insert(programs.end(), new Program());
+	}
+	int x = 1;
+	for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++, x++)
+    {
+		if(x == count)
+			return *programsIterator;
+	}
+	return NULL;
+}
+
+
+/**
+** Programm liest die LogDatei aus
 */
 bool readConfig(char *file)
 {
@@ -398,16 +419,43 @@ bool readConfig(char *file)
 			log(0, "Error opening log file: %s", file);
 			return false;
 		}
-		char str[500]; //500 ist die maximale zeilenlaenge
+		char str[500], find[100]; //500 ist die maximale zeilenlaenge
 		long fileSize = _fileSize(file);
+		int progCount = 1;
 		//solange bis kein Dateiende erreicht ist
 		while(!feof( f ) && ftell(f) < fileSize )
 		{
 			fscanf(f, "%[^\n]", str); //liest bis zum naechsten Linebreak == 1 Zeile aus
+			//wenn nicht null und größer 0 und kein # am anfang ist und kein Leerzeichen
+			if(str != NULL && strlen(str) > 0 && str[0] != '#' && str[0] != ' ')
+			{
+				char *tmp = strstr(str, "logfile=");
+				if(tmp != NULL && strlen(tmp) > 8)
+				{
+					int len = strlen(tmp + 8);
+					free(LOGFILE); //gibt die alte Logdatei frei
+					LOGFILE= (char*)malloc((len + 1) * sizeof(char));
+					strncpy(LOGFILE, tmp + 8, len + 1);
+
+				}
+					
+				tmp = strstr(str, "startparse=");
+				if(tmp != NULL && strlen(tmp) > 11)
+				{
+					sscanf(tmp + 11, "%d", &START_FROM_TOKEN);
+					log(0, "START FROM %d", START_FROM_TOKEN);
+				}
+				//andere Dinge noch implementieren == LogLevel, LogFile, etc..
+				sprintf(find, "prog%d_name=\0",progCount);
+				getProgram(5);
+				log(0, "BLUB %d", programs.size());
+			}
 			
+			strcpy(str,"\0"); //damit die leerzeilen ignoriert werden
 
 			fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 		}
+		return true;
 	}
 	catch(...)
 	{
