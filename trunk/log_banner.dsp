@@ -87,10 +87,26 @@ LINK32=link.exe
 
 SOURCE=.\main.cpp
 # End Source File
+# Begin Source File
+
+SOURCE=.\programs.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\user.cpp
+# End Source File
 # End Group
 # Begin Group "Header-Dateien"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
+# Begin Source File
+
+SOURCE=.\programs.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\user.h
+# End Source File
 # End Group
 # Begin Group "Ressourcendateien"
 
