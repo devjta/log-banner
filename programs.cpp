@@ -18,6 +18,8 @@ Programs::Programs()
 	releaseBanSec = 60 * 10; // == 10 Minuten
 	lineStart = NULL;
 	removeChars = NULL;
+	ipToken = -1;
+	userToken = -1;
 }
 
 
@@ -38,12 +40,11 @@ Programs::~Programs()
 
 
 
-bool Programs::isProgram(char *line)
+bool Programs::isValidProgram()
 {
-	if(progName == NULL || strlen(progName) == 0)
+	if(progName == NULL || strlen(progName) == 0 || ipToken == -1 || watchFor == NULL || strlen(watchFor) == 0)
 		return false;
-
-	return false;
+	return true;
 }
 
 
@@ -101,7 +102,8 @@ char* Programs::parseIP(char* ip)
 {
 	try{
 		char *ret =(char*)    malloc(strlen(ip) * sizeof(char));
-		for(unsigned int x = 0, y =0, points = 0; x != strlen(ip); x++)
+		int y = 0;
+		for(unsigned int x = 0, points = 0; x != strlen(ip); x++)
 		{
 			if(ip[x] >= '0' && ip[x] <= '9') 
 			{
@@ -120,6 +122,8 @@ char* Programs::parseIP(char* ip)
 			}
 
 		}
+		if(ret == NULL || strlen(ret) == 0)
+			return NULL;
 		ret[y] = '\0';
 		return ret;
 	}

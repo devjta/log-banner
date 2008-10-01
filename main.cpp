@@ -263,7 +263,9 @@ Programs* isRegisteredProgram(char *line)
 		//geht alle Programme durch
 		for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++)
 	    {
-			if(memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0)
+			//wenn gültiges Program == namen + iptoken + failString
+			if((*programsIterator)->isValidProgram() && 
+				memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0)
 			{
 				log(2, "Found program: %s", (*programsIterator)->getProgramName());
 				return *programsIterator;
@@ -310,7 +312,7 @@ bool readConfig(char *file)
 			log(0, "Error opening log file: %s", file);
 			return false;
 		}
-		char str[500], find[100]; //500 ist die maximale zeilenlaenge
+		char str[500]; //500 ist die maximale zeilenlaenge
 		long fileSize = _fileSize(file);
 		int progCount = 1;
 		//solange bis kein Dateiende erreicht ist
@@ -337,7 +339,32 @@ bool readConfig(char *file)
 					log(0, "START FROM %d", START_FROM_TOKEN);
 				}
 				//andere Dinge noch implementieren == LogLevel, LogFile, etc..
-				sprintf(find, "prog%d_name=\0",progCount);
+
+				//hier werden die Programme ausgelesen
+				tmp = strstr(str, "prog_name");
+				if(tmp != NULL && strlen(tmp) > 11)
+				{
+					int number = 1;
+					sscanf(tmp + 9, "%d", &number);
+					int len = strlen(tmp + 11) + 1;
+					char *_tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 11, len );
+					Programs *prog = getProgram(number);
+					log(0, "PROG %d %s", number, _tmp);
+					prog->setName(_tmp);
+				}
+				tmp = strstr(str, "prog_start");
+				if(tmp != NULL && strlen(tmp) > 12)
+				{
+					int number = 1;
+					sscanf(tmp + 10, "%d", &number);
+					int len = strlen(tmp + 12) + 1;
+					char *_tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 12, len );
+					Programs *prog = getProgram(number);
+					log(0, "START %d %s", number, _tmp);
+					prog->setLineStart(_tmp);
+				}
 			}
 			
 			strcpy(str,"\0"); //damit die leerzeilen ignoriert werden
