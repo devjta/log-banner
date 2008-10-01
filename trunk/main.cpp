@@ -19,11 +19,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
-#include <time.h>
 #include <sys/types.h>
 #include <sys/timeb.h>
 #include <sys/stat.h>
 #include <stdarg.h>
+#include "user.h"
+#include "programs.h"
+
 
 #ifdef __linux__
 	#include <termios.h>
@@ -130,128 +132,12 @@ char* parseItemFromLine(char *line, int itemCount)
 }
 
 
-/*
-** Klasse speichert die Programme + 
-*/
-class Program
-{
-private:
-	char *progName;
-	char *lineStart;
-	char *watchFor;
-	char *releaseFor;
-	int userToken;
-	int ipToken;
-public:
-
-	Program()
-	{
-
-	}
-
-	~Program()
-	{
-		if(progName != NULL)
-			delete(progName);
-		if(lineStart != NULL)
-			delete(lineStart);
-		if(watchFor != NULL)
-			delete(watchFor);
-		if(releaseFor != NULL)
-			delete(releaseFor);
-	}
-};
-
-
-/*
-** Klasse speichert den Benutzernamen + IP ab (Name ist nur fuer die Ausgabe)
-*/
-class User
-{
-private:
-	char *ip;
-	time_t lastResponse;
-	char *name;
-	int failLogin;
-	char *progName;
-public:
-
-	User(char *_ip, char *_name, char* _prog)
-	{
-		failLogin = 1; //da der Benutzer nur beim Falsch anmelden angelegt wird
-		ip = _ip;
-		name = _name;
-		progName = _prog;
-		log(2, "New Fail user registered: %s IP: %s for program: %s", name, ip, progName);
-		time(&lastResponse);
-	}
-
-	~User()
-	{
-		//log(3, "Desktruktor at: %s %s", ip, name);
-		if(name != NULL)
-			delete(name);	
-		if(ip != NULL)
-			delete(ip);
-		if(progName != NULL)
-			delete(progName);
-	}
-
-
-	void printTime()
-	{
-		log(3,"Last response:%s", ctime( &lastResponse ) );
-	}
-
-	char* getIp()
-	{
-		return ip;
-	}
-
-	char * getName()
-	{
-		return name;
-	}
-
-	int getCnt()
-	{
-		return failLogin;
-	}
-
-	void raiseCnt()
-	{
-		failLogin++;
-		time(&lastResponse);
-	}
-
-	void resetCnt()
-	{
-		failLogin = 0;
-		time(&lastResponse);
-	}
-
-	char * getProgName()
-	{
-		return progName;
-	}
-
-	/** 
-	** Funktion gibt true zurueck wenn der 
-	*/
-	bool isTimeoutBan(time_t time, long between)
-	{
-		//log(0, "Current stamp: %ld\nMine stamp %ld\nBetween: %ld == %ld", time, lastResponse, between, time - lastResponse);
-		return time - lastResponse > between;
-	}
-};
-
-
 //////////////////////////////LISTEN DEFINITIONEN////////////////////////////
 	std::list<User *> users;
 	std::list<User *>::iterator usersIterator;
 	
-	std::list<Program *> programs;
-	std::list<Program *>::iterator programsIterator;
+	std::list<Programs *> programs;
+	std::list<Programs *>::iterator programsIterator;
 //////////////////////////////ENDE LISTEN DEFINITIONEN//////////////////////
 
 
@@ -390,12 +276,12 @@ bool isRegisteredProgram(char *line)
 /**
 ** Liefert das Programm an der jeweiligen ID zurück
 */
-Program* getProgram(int count)
+Programs* getProgram(int count)
 {
 	//wenn zu wenig drinnen ist, dann erhöhe
 	while(count > programs.size())
 	{
-		programs.insert(programs.end(), new Program());
+		programs.insert(programs.end(), new Programs());
 	}
 	int x = 1;
 	for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++, x++)
@@ -429,7 +315,7 @@ bool readConfig(char *file)
 			//wenn nicht null und größer 0 und kein # am anfang ist und kein Leerzeichen
 			if(str != NULL && strlen(str) > 0 && str[0] != '#' && str[0] != ' ')
 			{
-				char *tmp = strstr(str, "logfile=");
+				char *tmp = strstr(str, "readlog=");
 				if(tmp != NULL && strlen(tmp) > 8)
 				{
 					int len = strlen(tmp + 8);
