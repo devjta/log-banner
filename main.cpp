@@ -24,14 +24,17 @@
 #include <sys/stat.h>
 #include <stdarg.h>
 #include "user.h"
-#include "programs.h"
+
+//#include "programs.h" // not needed because user.h includes programs.h
 
 
 #ifdef __linux__
 	#include <termios.h>
 	#include <unistd.h>
+	//#include <regex.h>
 #else
 	#include <conio.h>
+	//#include "regex/include/regex.h"
 #endif
 
 
@@ -47,14 +50,12 @@
 #define VERSION "1.0a"
 
 
-static char* LOGFILE = NULL;
-static bool logging = true;
-static char* logger = NULL;
-static int LOG_LEVEL = 3; //LOG_LEVEL 0 == fast nichts, 1 == user ban/unban, 2 == user gefunden, 3 == sonstige infos == ALLES
-static int SLEEPS = 2500; //schau alle 2.5 sekunden nach ob die log Datei groesser geworden ist
-static int ERROR_ATTEMPTS = 3; //3 falsche Loginversuche
-static int RELEASE_BANS_SEC = 60  * 10; // == 10 Minuten, 
-static int START_FROM_TOKEN = 3; //Bei welchem Token man anfängt das Syslog auszuwerten
+char* LOGFILE = NULL;
+bool logging = true;
+char* logger = NULL;
+int LOG_LEVEL = 3; //LOG_LEVEL 0 == fast nichts, 1 == user ban/unban, 2 == user gefunden, 3 == sonstige infos == ALLES
+int SLEEPS = 2500; //schau alle 2.5 sekunden nach ob die log Datei groesser geworden ist
+int START_FROM_TOKEN = 2; //Bei welchem Token man anfängt das Syslog auszuwerten
 
 
 
@@ -95,11 +96,9 @@ void log(int level, const char* str,...)
 
 
 /**
-** Funktion liest einen Eintrag aus anderen Einträgen, jenachdem welche Zahl man ergibt
-** zB sieht so ein Eintrag aus Sat Sep 13 19:26:29 2008 [pid 5057] [Administrator] FAIL LOGIN: Client "200.68.66.93"
-** Also wird der 11te Token genommen
+**  
 */
-char* parseItemFromLine(char *line, int itemCount)
+char* removeItemsFromLine(char *line, int itemCount)
 {
 	try{
 		if(line != NULL)
@@ -113,14 +112,11 @@ char* parseItemFromLine(char *line, int itemCount)
 				result = ptr - line + 1;
 				x++;
 			}
-			result = ptr - line + 1;
-			ptr = strchr(line + result, ' ');
-			int until = ptr - line + 1;
-			if(ptr == NULL)
-				until = strlen(line) + 1;
-			char* ret = (char*)malloc(until - result - 2 * sizeof(char));
-			strncpy(ret, line + result + 1, until - result - 3);
-			ret[until - result - 3] = '\0';
+			result = ptr - line;
+			int until = strlen(line) + 1;
+			char* ret = (char*)malloc((until - result) * sizeof(char));
+			strncpy(ret, line + result + 1, until - result - 2);
+			ret[until - result - 2] = '\0';
 			return ret;
 		}
 	}catch(...)
@@ -216,7 +212,7 @@ void releaseBans()
 
 	for(usersIterator = users.begin(); usersIterator != users.end() && users.size() > 0; usersIterator++)
     {
-		if((*usersIterator)->isTimeoutBan(currentTime, RELEASE_BANS_SEC))
+		if((*usersIterator)->isTimeoutBan(currentTime))
 		{
 			log(1, "UNBAN user (%s) with IP: %s", (*usersIterator)->getName(),(*usersIterator)->getIp());
 			#ifdef __linux__
@@ -239,15 +235,20 @@ void releaseBans()
 /**
 ** Funtktion geht die Benutzer durch und falls die IP + Programname gleich sind, gib den gleichen Benutzer zurueck
 */
-User* findUserInList(char *ip, char* progName)
+User* findUserInList(char *ip, Programs* program)
 {
-	for(usersIterator = users.begin(); usersIterator != users.end(); usersIterator++)
-    {
-		if(strcmp((*usersIterator)->getIp(), ip) == 0 && strcmp((*usersIterator)->getProgName(), progName) == 0)
+	try{
+		for(usersIterator = users.begin(); usersIterator != users.end(); usersIterator++)
 		{
-			log(2, "Found user: %s with IP: %s and error cnt %d in list!", (*usersIterator)->getName(),(*usersIterator)->getIp(),(*usersIterator)->getCnt());
-			return *usersIterator;
+			if(strcmp((*usersIterator)->getIp(), ip) == 0 && strcmp((*usersIterator)->getProgName(), program->getProgramName()) == 0)
+			{
+				log(2, "Found user: %s with IP: %s and error cnt %d in list!", (*usersIterator)->getName(),(*usersIterator)->getIp(),(*usersIterator)->getCnt());
+				return *usersIterator;
+			}
 		}
+	}
+	catch(...)
+	{
 	}
 	return NULL;
 }
@@ -256,20 +257,24 @@ User* findUserInList(char *ip, char* progName)
 /**
 ** Programm sieht nach ob 
 */
-bool isRegisteredProgram(char *line)
+Programs* isRegisteredProgram(char *line)
 {
 	try{
 		//geht alle Programme durch
 		for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++)
 	    {
-			
+			if(memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0)
+			{
+				log(2, "Found program: %s", (*programsIterator)->getProgramName());
+				return *programsIterator;
+			}
 		}
 	}
 	catch(...)
 	{
-
+		log(0, "Exception occured when finding program at line: %s", line);
 	}
-	return false;
+	return NULL;
 }
 
 
@@ -333,14 +338,20 @@ bool readConfig(char *file)
 				}
 				//andere Dinge noch implementieren == LogLevel, LogFile, etc..
 				sprintf(find, "prog%d_name=\0",progCount);
-				getProgram(5);
-				log(0, "BLUB %d", programs.size());
 			}
 			
 			strcpy(str,"\0"); //damit die leerzeilen ignoriert werden
 
 			fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 		}
+
+		Programs* prog = getProgram(1);
+		prog->setName("dropbear");
+		prog->setErrorCnt(3);
+		prog->setUserToken(4);
+		prog->setIpToken(6);
+		prog->setReleaseBan(600);
+		prog->setReplaceString("':f");
 		return true;
 	}
 	catch(...)
@@ -370,7 +381,7 @@ int main(int argc, char *argv[])
 		//nur wenn der erste Parameter ein Abfrageparameter ist, dann wird die Hilfe ausgegeben, ansonsten nix
 		if(strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "--?") == 0 || strcmp(argv[1], "/?") == 0|| strcmp(argv[1], "--help") == 0)
 		{
-			printf("\n  log_banner %s (c) 2008 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file", VERSION);
+			printf("\n  log_banner %s (c) 2008 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file\n\n", VERSION);
 			return 0;
 		}
 		//geht die Parameter durch
@@ -392,7 +403,7 @@ int main(int argc, char *argv[])
 	time( &ltime );
 	log(0, "Startup:\t\t\t%s", ctime( &ltime ) );
 	
-	log(3, "%s %ld", LOGFILE, _fileSize(LOGFILE));
+	log(3, "%s Size: %ld bytes", LOGFILE, _fileSize(LOGFILE));
 	
 	char str[500]; //500 ist die maximale zeilenlaenge
 	FILE *f = fopen(LOGFILE, "r");
@@ -409,27 +420,41 @@ int main(int argc, char *argv[])
 				{
 					fileSize = tmpSize;
 					fscanf(f, "%[^\n]", str); //liest bis zum naechsten Linebreak == 1 Zeile aus
+					char* line = removeItemsFromLine(str, START_FROM_TOKEN); //removed den Zeitstempel den keiner braucht
 					//sucht nach der FAIL Antwort
-					if(isRegisteredProgram(str)) //wenn gefunden
+					Programs* prog = isRegisteredProgram(line);
+					if(prog != NULL) //wenn gefunden
 					{
 						log(2, "Failed login attempt: %s", str);
-						User* user = findUserInList("192.168.101.129","asf");
-						//wenn User NULL
-						if(user == NULL)
+						char **tmp = prog->parseIPandUser(line); //holt mal die IP + Namen aus der Logdatei
+						if(tmp != NULL)
 						{
-							user = new User("192.168.101.129","blub","asf");
-							users.insert(users.end(), user);
+							char *ip = tmp[0], *name = tmp[1]; //ip + name
+							if(tmp != NULL) //nur wenn die IP überhaupt geparst werden konnte
+							{	
+								User* user = findUserInList(ip, prog); //sucht den Benutzer + Programm
+								//wenn User NULL
+								if(user == NULL)
+								{
+									user = new User(ip, name ,prog);
+									users.insert(users.end(), user);
+								}
+								else
+								{
+									user->raiseCnt(); //eins erhoehen + timestamp raufsetzen
+									log(2, "Raise user error count(%d): %s[%s]", user->getCnt(), user->getIp(), user->getName());
+									//wenn er die error attempts überschritten hat (tztz) dann wird er gebannt
+									if(user->toMuchErrorAttempts())
+									{
+										banip(user); //ban this ass
+									}
+								}
+							}
+							else
+								log(0, "Not able to parse IP from: %s with program: %s", str, prog->getProgramName());
 						}
 						else
-						{
-							user->raiseCnt(); //eins erhoehen + timestamp raufsetzen
-							log(2, "Raise user error count(%d): %s[%s]", user->getCnt(), user->getIp(), user->getName());
-							//wenn er die error attempts überschritten hat (tztz) dann wird er gebannt
-							if(user->getCnt() >= ERROR_ATTEMPTS)
-							{
-								banip(user); //ban this ass
-							}
-						}
+							log(0, "Not able to parse IP from: %s with program: %s", str, prog->getProgramName());
 					}
 					fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 				}while(!feof( f ) && ftell(f) < fileSize ); //nur solange bis file ende oder eben die position groesser als die datei ist

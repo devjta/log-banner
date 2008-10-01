@@ -7,6 +7,7 @@
 
 
 #include <time.h>
+#include "programs.h"
 
 class User
 {
@@ -15,17 +16,20 @@ private:
 	time_t lastResponse;
 	char *name;
 	int failLogin;
-	char *progName;
+	Programs *program;
 public:
 
-	User(char *_ip, char *_name, char* _prog);
+	User(char *_ip, char *_name, Programs* _program);
 	~User();
 	void printTime();
 	char* getIp();
-	char * getName();
+	char *getName();
+	char *getProgName();
 	int getCnt();
 	void raiseCnt();
 	void resetCnt();
-	char * getProgName();
-	bool isTimeoutBan(time_t time, long between);
+	bool isTimeoutBan(time_t time);
+	//new functions
+	bool toMuchErrorAttempts();
 };
+
