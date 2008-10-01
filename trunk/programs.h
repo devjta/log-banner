@@ -25,7 +25,7 @@ public:
 
 	Programs();
 	~Programs();
-	bool isProgram(char *line);
+	bool isValidProgram();
 	int getReleaseSec();
 	int getMaxErrorCnt();
 	char* getProgramName();
