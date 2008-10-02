@@ -18,9 +18,6 @@ private:
 	int errorAttempt;
 	int releaseBanSec;
 	char *removeChars;
-	char* replaceIllegal(char *str);
-	char* parseItemFromLine(char * line, int);
-	char* parseIP(char* ip);
 public:
 
 	Programs();
@@ -30,7 +27,9 @@ public:
 	int getMaxErrorCnt();
 	char* getProgramName();
 	char* getLineStart();
-	char** parseIPandUser(char *line);
+	char* getErrorText();
+	char* getSuccessText();
+	char* getRemoveChars();
 	void setName(char *name);
 	void setLineStart(char *line);
 	void setWatchFor(char *errorLine);
@@ -40,5 +39,9 @@ public:
 	void setErrorCnt(int error);
 	void setReleaseBan(int secs);
 	void setReplaceString(char *signs);
+	int getIpToken();
+	int getUserToken();
+	bool isValidLine(char *line);
+	bool isErrorOrSuccess(char *line, bool *error);
 };
 
