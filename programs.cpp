@@ -20,6 +20,8 @@ Programs::Programs()
 	removeChars = NULL;
 	ipToken = -1;
 	userToken = -1;
+	watchFor = NULL;
+	releaseFor = NULL;
 }
 
 
@@ -71,134 +73,6 @@ char* Programs::getLineStart()
 	return lineStart;
 }
 
-//
-char** Programs::parseIPandUser(char *line)
-{
-	
-	char *ip = parseItemFromLine(line, ipToken);
-	if(ip != NULL && strlen(ip) > 0)
-	{
-		char *tmp = parseIP(ip);
-		if(tmp == NULL) //wenn du NULL bist,gab es einen Fehler
-			ip = replaceIllegal(ip); //ersetze einfach die illegalen Zeichen
-		else
-			ip = tmp;
-	}
-
-	log(0,"FOUND IP: %s", ip);
-	char *name = parseItemFromLine(line, userToken);
-	if(name != NULL && strlen(name) > 0)
-		name = replaceIllegal(name);
-	
-	log(0, "FOUND NAME: %s", name);
-	char **ret = (char**)malloc(2);
-	ret[0] = ip;
-	ret[1] = name;
-	return ret;
-}
-
-// Funktion gibt die IP Adresse zurück
-char* Programs::parseIP(char* ip)
-{
-	try{
-		char *ret =(char*)    malloc(strlen(ip) * sizeof(char));
-		int y = 0;
-		for(unsigned int x = 0, points = 0; x != strlen(ip); x++)
-		{
-			if(ip[x] >= '0' && ip[x] <= '9') 
-			{
-				ret[y] = ip[x];
-				y++;
-			}
-			else if(ip[x] == '.')
-			{
-				points++;
-				ret[y] = '.';
-				y++;
-			}
-			else if(points >= 3) //wenn es schon mehr als 3 Punkte sind und keine Zahl mehr, dann bist du keine Zahl mehr und Abbruch
-			{
-				break;
-			}
-
-		}
-		if(ret == NULL || strlen(ret) == 0)
-			return NULL;
-		ret[y] = '\0';
-		return ret;
-	}
-	catch(...)
-	{
-	}
-	return NULL;
-}
-
-//
-char* Programs::replaceIllegal(char *str)
-{
-	if(removeChars != NULL && strlen(removeChars) > 0)
-	{
-		char *ret = (char*) malloc(strlen(str) * sizeof(char));
-		int z = 0;
-		for(unsigned int x = 0; x != strlen(str); x++)
-		{
-			bool found = false;
-			for(unsigned int y = 0; y != strlen(removeChars); y++)
-			{
-				if(str[x] == removeChars[y])
-				{
-					found = true;
-					break;
-				}
-			}
-			if(!found)
-			{
-				ret[z] = str[x];
-				z++;
-			}
-		}
-		ret[z] = '\0';
-		return ret;
-	}
-	return str;
-}
-
-/**
-** Funktion liest einen Eintrag aus anderen Einträgen, jenachdem welche Zahl man ergibt
-** Also wird der 11te Token genommen
-*/
-char* Programs::parseItemFromLine(char *line, int itemCount)
-{
-	try{
-		if(line != NULL)
-		{
-			char *ptr = strchr(line,' ');
-			int result = ptr - line + 1;
-			int	x = 0;
-			while(x < itemCount)
-			{
-				ptr = strchr(line + result,' ');
-				result = ptr - line + 1;
-				x++;
-			}
-			result = ptr - line + 1;
-			ptr = strchr(line + result, ' ');
-			int until = ptr - line + 1;
-			if(ptr == NULL)
-				until = strlen(line) + 1;
-			char* ret = (char*)malloc(until - result  * sizeof(char));
-			strncpy(ret, line + result, until - result - 1);
-			ret[until - result - 1] = '\0';
-			return ret;
-		}
-	}catch(...)
-	{
-		log(0, "Error fetching item: %d from line: %s", itemCount, line);
-
-	}
-	return NULL;
-}
-
 
 void Programs::setName(char *name)
 {
@@ -242,3 +116,72 @@ void Programs::setReplaceString(char *signs)
 {
 	removeChars = signs;
 }
+
+char* Programs::getRemoveChars()
+{
+	return removeChars;
+}
+
+
+char* Programs::getErrorText()
+{
+	return watchFor;
+}
+
+char* Programs::getSuccessText()
+{
+	return releaseFor; 
+}
+
+int Programs::getIpToken()
+{
+	return ipToken;
+}
+
+int Programs::getUserToken()
+{
+	return userToken;
+}
+
+bool Programs::isValidLine(char *line)
+{
+	try{
+		if(line == NULL)
+			return false;
+		if(!isValidProgram())
+			return false;
+		if(strstr(line, watchFor))
+			return true;
+		if(releaseFor == NULL)
+			return false;
+		if(strstr(line, releaseFor))
+			return true;
+	}
+	catch(...)
+	{}
+	return false;
+}
+
+
+bool Programs::isErrorOrSuccess(char *line, bool *error)
+{
+	if(isValidLine(line))
+	{
+		try{
+			if(strstr(line, watchFor))
+				*error = true;
+			else 
+			{
+				if(releaseFor == NULL)
+					return false;
+				if(strstr(line, releaseFor))
+					*error = false;
+			}
+			return true;
+		}catch(...)
+		{}
+	}
+	return false;
+}
+
+

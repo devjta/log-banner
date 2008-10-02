@@ -55,7 +55,7 @@ bool logging = true;
 char* logger = NULL;
 int LOG_LEVEL = 3; //LOG_LEVEL 0 == fast nichts, 1 == user ban/unban, 2 == user gefunden, 3 == sonstige infos == ALLES
 int SLEEPS = 2500; //schau alle 2.5 sekunden nach ob die log Datei groesser geworden ist
-int START_FROM_TOKEN = 2; //Bei welchem Token man anfängt das Syslog auszuwerten
+int START_FROM_TOKEN = 3; //Bei welchem Token man anfängt das Syslog auszuwerten
 
 
 
@@ -100,6 +100,8 @@ void log(int level, const char* str,...)
 */
 char* removeItemsFromLine(char *line, int itemCount)
 {
+	if(itemCount <= 0)
+		return line;
 	try{
 		if(line != NULL)
 		{
@@ -215,14 +217,16 @@ void releaseBans()
 		if((*usersIterator)->isTimeoutBan(currentTime))
 		{
 			log(1, "UNBAN user (%s) with IP: %s", (*usersIterator)->getName(),(*usersIterator)->getIp());
-			#ifdef __linux__
-				char UNBAN[200];
-				sprintf(UNBAN, "iptables -D INPUT -p tcp -s %s -j DROP", (*usersIterator)->getIp());
-				system(UNBAN);
-			#else
-				log(0, "Unbanning users in windows is not implemented!!");
-			#endif
-
+			//if((*usersIterator)->toMuchErrorAttempts()) //nur wenn überhaupt zuoft zugegriffen wurde, kann man den unbannen
+			{
+				#ifdef __linux__
+					char UNBAN[200];
+					sprintf(UNBAN, "iptables -D INPUT -p tcp -s %s -j DROP", (*usersIterator)->getIp());
+					system(UNBAN);
+				#else
+					log(0, "Unbanning users in windows is not implemented!!");
+				#endif
+			}
 			(*usersIterator)->resetCnt(); //resets the cnt
 			delete(*usersIterator); //delete it
 			users.erase(usersIterator); //removes from list
@@ -265,7 +269,8 @@ Programs* isRegisteredProgram(char *line)
 	    {
 			//wenn gültiges Program == namen + iptoken + failString
 			if((*programsIterator)->isValidProgram() && 
-				memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0)
+				memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0 &&
+				(*programsIterator)->isValidLine(line))
 			{
 				log(2, "Found program: %s", (*programsIterator)->getProgramName());
 				return *programsIterator;
@@ -278,6 +283,160 @@ Programs* isRegisteredProgram(char *line)
 	}
 	return NULL;
 }
+
+/**
+** Funktion liest einen Eintrag aus anderen Einträgen, jenachdem welche Zahl man ergibt
+** Also wird der 11te Token genommen
+*/
+char* parseItemFromLine(char *line, int itemCount)
+{
+	try{
+		if(line != NULL)
+		{
+			char *ptr = strchr(line,' ');
+			int result = ptr - line + 1;
+			int	x = 0;
+			while(x < itemCount)
+			{
+				ptr = strchr(line + result,' ');
+				result = ptr - line + 1;
+				x++;
+			}
+			result = ptr - line + 1;
+			ptr = strchr(line + result, ' ');
+			int until = ptr - line + 1;
+			if(ptr == NULL)
+				until = strlen(line) + 1;
+			char* ret = (char*)malloc(until - result  * sizeof(char));
+			strncpy(ret, line + result, until - result - 1);
+			ret[until - result - 1] = '\0';
+			return ret;
+		}
+	}catch(...)
+	{
+		log(0, "Error fetching item: %d from line: %s", itemCount, line);
+
+	}
+	return NULL;
+}
+
+/*
+**
+*/
+char* replaceIllegal(char *str, Programs* prog)
+{
+	if(prog->getRemoveChars() != NULL && strlen(prog->getRemoveChars()) > 0)
+	{
+		char *ret = (char*) malloc(strlen(str) * sizeof(char));
+		int z = 0;
+		for(unsigned int x = 0; x != strlen(str); x++)
+		{
+			bool found = false;
+			for(unsigned int y = 0; y != strlen(prog->getRemoveChars()); y++)
+			{
+				if(str[x] == prog->getRemoveChars()[y])
+				{
+					found = true;
+					break;
+				}
+			}
+			if(!found)
+			{
+				ret[z] = str[x];
+				z++;
+			}
+		}
+		ret[z] = '\0';
+		return ret;
+	}
+	return str;
+}
+
+
+/*
+** Funktion gibt die IP Adresse zurück
+*/
+char* parseIP(char* ip)
+{
+	try{
+		char *ret =(char*)    malloc(strlen(ip) * sizeof(char));
+		int y = 0;
+		for(unsigned int x = 0, points = 0; x != strlen(ip); x++)
+		{
+			if(ip[x] >= '0' && ip[x] <= '9') 
+			{
+				ret[y] = ip[x];
+				y++;
+			}
+			else if(ip[x] == '.')
+			{
+				points++;
+				ret[y] = '.';
+				y++;
+			}
+			else if(points >= 3) //wenn es schon mehr als 3 Punkte sind und keine Zahl mehr, dann bist du keine Zahl mehr und Abbruch
+			{
+				break;
+			}
+
+		}
+		if(ret == NULL || strlen(ret) == 0)
+			return NULL;
+		ret[y] = '\0';
+		return ret;
+	}
+	catch(...)
+	{
+	}
+	return NULL;
+}
+
+/*
+**
+*/
+char* parseUserFromLine(char *line, Programs* prog)
+{
+	try{
+		char *name = parseItemFromLine(line, prog->getUserToken());
+		if(name != NULL && strlen(name) > 0)
+			name = replaceIllegal(name, prog);
+
+		log(0, "FOUND NAME: %s", name);
+		return name;
+	}
+	catch(...)
+	{
+	}
+	return ""; //Leerstring == kein user gefunden
+}
+
+
+
+/*
+**
+*/
+char* parseIPFromLine(char *line, Programs *prog)
+{
+	try{
+		char *ip = parseItemFromLine(line, prog->getIpToken());
+		if(ip != NULL && strlen(ip) > 0)
+		{
+			char *tmp = parseIP(ip);
+			if(tmp == NULL) //wenn du NULL bist,gab es einen Fehler
+				ip = replaceIllegal(ip, prog); //ersetze einfach die illegalen Zeichen
+			else
+				ip = tmp;
+		}
+
+		log(0,"FOUND IP: %s", ip);
+		return ip;
+	}
+	catch(...)
+	{
+	}
+	return NULL;
+}
+
 
 
 /**
@@ -338,7 +497,29 @@ bool readConfig(char *file)
 					sscanf(tmp + 11, "%d", &START_FROM_TOKEN);
 					log(0, "START FROM %d", START_FROM_TOKEN);
 				}
-				//andere Dinge noch implementieren == LogLevel, LogFile, etc..
+				tmp = strstr(str, "loglevel=");
+				if(tmp != NULL && strlen(tmp) > 9)
+				{
+					sscanf(tmp + 9, "%d", &LOG_LEVEL);
+					log(0, "LOG LEVEL %d", LOG_LEVEL);
+				}
+				tmp = strstr(str, "outputlog=");
+				if(tmp != NULL && strlen(tmp) > 10)
+				{
+					int len = strlen(tmp + 10) + 1;
+					char* _tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 10,len);
+					log(0, "LOG TO FILE: %s", _tmp);
+					logger = _tmp;
+				}
+				tmp = strstr(str, "refreshms");
+				if(tmp != NULL && strlen(tmp) > 10)
+				{
+					sscanf(tmp + 10, "%d", &SLEEPS);
+					if(SLEEPS < 500)
+						SLEEPS = 500;
+					log(0, "REFRESH MS %d", SLEEPS);
+				}
 
 				//hier werden die Programme ausgelesen
 				tmp = strstr(str, "prog_name");
@@ -350,7 +531,7 @@ bool readConfig(char *file)
 					char *_tmp = (char*)malloc(len * sizeof(char));
 					strncpy(_tmp, tmp + 11, len );
 					Programs *prog = getProgram(number);
-					log(0, "PROG %d %s", number, _tmp);
+					log(3, "PROG %d %s", number, _tmp);
 					prog->setName(_tmp);
 				}
 				tmp = strstr(str, "prog_start");
@@ -362,8 +543,84 @@ bool readConfig(char *file)
 					char *_tmp = (char*)malloc(len * sizeof(char));
 					strncpy(_tmp, tmp + 12, len );
 					Programs *prog = getProgram(number);
-					log(0, "START %d %s", number, _tmp);
+					log(3, "START %d %s", number, _tmp);
 					prog->setLineStart(_tmp);
+				}
+				tmp = strstr(str, "prog_fail");
+				if(tmp != NULL && strlen(tmp) > 11)
+				{
+					int number = 1;
+					sscanf(tmp + 9, "%d", &number);
+					int len = strlen(tmp + 11) + 1;
+					char *_tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 11, len );
+					Programs *prog = getProgram(number);
+					log(3, "FAIL %d %s", number, _tmp);
+					prog->setWatchFor(_tmp);
+				}
+				tmp = strstr(str, "prog_success");
+				if(tmp != NULL && strlen(tmp) > 14)
+				{
+					int number = 1;
+					sscanf(tmp + 12, "%d", &number);
+					int len = strlen(tmp + 14) + 1;
+					char *_tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 14, len );
+					Programs *prog = getProgram(number);
+					log(3, "SUCCESS %d %s", number, _tmp);
+					prog->setReleaseFor(_tmp);
+				}
+				tmp = strstr(str, "prog_userparse");
+				if(tmp != NULL && strlen(tmp) > 16)
+				{
+					int number = 1, token = -1;
+					sscanf(tmp + 14, "%d", &number);
+					Programs *prog = getProgram(number);	
+					sscanf(tmp + 16, "%d", &token);
+					log(3, "USERPARSE %d", token);
+					prog->setUserToken(token);
+				}
+				tmp = strstr(str, "prog_ipparse");
+				if(tmp != NULL && strlen(tmp) > 14)
+				{
+					int number = 1, token = -1;
+					sscanf(tmp + 12, "%d", &number);
+					Programs *prog = getProgram(number);	
+					sscanf(tmp + 14, "%d", &token);
+					log(3, "IPPARSE %d", token);
+					prog->setIpToken(token);
+				}
+				tmp = strstr(str, "prog_errorAttempt");
+				if(tmp != NULL && strlen(tmp) > 19)
+				{
+					int number = 1, token = -1;
+					sscanf(tmp + 17, "%d", &number);
+					Programs *prog = getProgram(number);	
+					sscanf(tmp + 19, "%d", &token);
+					log(3, "ERRATEMPT %d", token);
+					prog->setErrorCnt(token);
+				}
+				tmp = strstr(str, "prog_releaseBanSec");
+				if(tmp != NULL && strlen(tmp) > 20)
+				{
+					int number = 1, token = -1;
+					sscanf(tmp + 18, "%d", &number);
+					Programs *prog = getProgram(number);	
+					sscanf(tmp + 20, "%d", &token);
+					log(3, "RELEASEBANSEC %d", token);
+					prog->setReleaseBan(token);
+				}
+				tmp = strstr(str, "prog_removeSigns");
+				if(tmp != NULL && strlen(tmp) > 18)
+				{
+					int number = 1;
+					sscanf(tmp + 16, "%d", &number);
+					int len = strlen(tmp + 18) + 1;
+					char *_tmp = (char*)malloc(len * sizeof(char));
+					strncpy(_tmp, tmp + 18, len );
+					Programs *prog = getProgram(number);
+					log(3, "REMOVESIGN %d %s", number, _tmp);
+					prog->setReplaceString(_tmp);
 				}
 			}
 			
@@ -372,13 +629,14 @@ bool readConfig(char *file)
 			fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 		}
 
-		Programs* prog = getProgram(1);
+		/*Programs* prog = getProgram(1);
 		prog->setName("dropbear");
 		prog->setErrorCnt(3);
 		prog->setUserToken(4);
 		prog->setIpToken(6);
 		prog->setReleaseBan(600);
 		prog->setReplaceString("':f");
+		prog->setWatchFor("bad password attempt for");*/
 		return true;
 	}
 	catch(...)
@@ -413,6 +671,7 @@ int main(int argc, char *argv[])
 		}
 		//geht die Parameter durch
 		else{
+			printf("\n\tlog_banner %s (c) 2008 by Taschek Joerg\n\n", VERSION);
 			for(int x = 1; x != argc; x++)
 			{
 				if(!readConfig(argv[x]))
@@ -428,7 +687,7 @@ int main(int argc, char *argv[])
 	//holt einfach mal die aktuelle Uhrzeit
 	time_t ltime;
 	time( &ltime );
-	log(0, "Startup:\t\t\t%s", ctime( &ltime ) );
+	log(0, "Startup:\t\tTime: %s", ctime( &ltime ) );
 	
 	log(3, "%s Size: %ld bytes", LOGFILE, _fileSize(LOGFILE));
 	
@@ -450,14 +709,15 @@ int main(int argc, char *argv[])
 					char* line = removeItemsFromLine(str, START_FROM_TOKEN); //removed den Zeitstempel den keiner braucht
 					//sucht nach der FAIL Antwort
 					Programs* prog = isRegisteredProgram(line);
-					if(prog != NULL) //wenn gefunden
+					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
 					{
-						log(2, "Failed login attempt: %s", str);
-						char **tmp = prog->parseIPandUser(line); //holt mal die IP + Namen aus der Logdatei
-						if(tmp != NULL)
+						bool error = false;
+						//todo look for auth succeded values to reset cnt value
+						if(prog->isErrorOrSuccess(line, &error) && error)
 						{
-							char *ip = tmp[0], *name = tmp[1]; //ip + name
-							if(tmp != NULL) //nur wenn die IP überhaupt geparst werden konnte
+							log(2, "Failed login attempt: %s", line);
+							char *ip = parseIPFromLine(line, prog), *name = parseUserFromLine(line, prog); //ip + name
+							if(ip != NULL) //nur wenn die IP überhaupt geparst werden konnte
 							{	
 								User* user = findUserInList(ip, prog); //sucht den Benutzer + Programm
 								//wenn User NULL
@@ -477,8 +737,6 @@ int main(int argc, char *argv[])
 									}
 								}
 							}
-							else
-								log(0, "Not able to parse IP from: %s with program: %s", str, prog->getProgramName());
 						}
 						else
 							log(0, "Not able to parse IP from: %s with program: %s", str, prog->getProgramName());
