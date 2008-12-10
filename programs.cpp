@@ -9,6 +9,8 @@
 #include <malloc.h>
 #include "programs.h"
 
+#define INLINE "<INLINE>"
+
 //damit er weiﬂ das es diese Funktion auch gibt
 extern void log(int level, const char* str,...);
 
@@ -49,6 +51,10 @@ bool Programs::isValidProgram()
 	return true;
 }
 
+bool Programs::isInlineProgram()
+{
+	return progName != NULL && strcmp(progName, INLINE) == 0;
+}
 
 int Programs::getReleaseSec()
 {

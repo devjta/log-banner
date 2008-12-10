@@ -199,6 +199,8 @@ void banip(User * user)
 	char BAN[200];
 	sprintf(BAN, "iptables -I INPUT -p tcp -s %s -j DROP", user->getIp());
 	system(BAN);
+	sprintf(BAN, "iptables -I INPUT -p udp -s %s -j DROP", user->getIp());
+	system(BAN);
 #else
 	log(0, "Banning users in windows is not implemented!!");	
 #endif
@@ -222,6 +224,8 @@ void releaseBans()
 				#ifdef __linux__
 					char UNBAN[200];
 					sprintf(UNBAN, "iptables -D INPUT -p tcp -s %s -j DROP", (*usersIterator)->getIp());
+					system(UNBAN);
+					sprintf(UNBAN, "iptables -D INPUT -p udp -s %s -j DROP", (*usersIterator)->getIp());
 					system(UNBAN);
 				#else
 					log(0, "Unbanning users in windows is not implemented!!");
@@ -268,11 +272,16 @@ Programs* isRegisteredProgram(char *line)
 		for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++)
 	    {
 			//wenn gültiges Program == namen + iptoken + failString
-			if((*programsIterator)->isValidProgram() && 
+			if( (*programsIterator)->isValidProgram() && 
 				memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0 &&
 				(*programsIterator)->isValidLine(line))
 			{
 				log(2, "Found program: %s", (*programsIterator)->getProgramName());
+				return *programsIterator;
+			}
+			else if( (*programsIterator)->isInlineProgram() )
+			{
+				log(2, "Found inline program");
 				return *programsIterator;
 			}
 		}
@@ -321,7 +330,7 @@ char* parseItemFromLine(char *line, int itemCount)
 }
 
 /*
-**
+** Funktion löscht "illegale" Zeichen
 */
 char* replaceIllegal(char *str, Programs* prog)
 {
@@ -437,6 +446,24 @@ char* parseIPFromLine(char *line, Programs *prog)
 	return NULL;
 }
 
+/**
+** Funktion ersetzt String im String
+*/
+char *replace_str(char *str, char *orig, char *rep)
+{
+  static char buffer[4096];
+  char *p;
+
+  if(!(p = strstr(str, orig)))  // Is 'orig' even in 'str'?
+    return str;
+
+  strncpy(buffer, str, p-str); // Copy characters from 'str' start to 'orig' st$
+  buffer[p-str] = '\0';
+
+  sprintf(buffer+(p-str), "%s%s", rep, p+strlen(orig));
+
+  return buffer;
+}
 
 
 /**
@@ -628,15 +655,6 @@ bool readConfig(char *file)
 
 			fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 		}
-
-		/*Programs* prog = getProgram(1);
-		prog->setName("dropbear");
-		prog->setErrorCnt(3);
-		prog->setUserToken(4);
-		prog->setIpToken(6);
-		prog->setReleaseBan(600);
-		prog->setReplaceString("':f");
-		prog->setWatchFor("bad password attempt for");*/
 		return true;
 	}
 	catch(...)
@@ -707,6 +725,7 @@ int main(int argc, char *argv[])
 					fileSize = tmpSize;
 					fscanf(f, "%[^\n]", str); //liest bis zum naechsten Linebreak == 1 Zeile aus
 					char* line = removeItemsFromLine(str, START_FROM_TOKEN); //removed den Zeitstempel den keiner braucht
+					line = replace_str(line, "  ", " "); //replace 2 spaces with 1 space
 					//sucht nach der FAIL Antwort
 					Programs* prog = isRegisteredProgram(line);
 					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
