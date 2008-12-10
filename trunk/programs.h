@@ -23,6 +23,7 @@ public:
 	Programs();
 	~Programs();
 	bool isValidProgram();
+	bool isInlineProgram();
 	int getReleaseSec();
 	int getMaxErrorCnt();
 	char* getProgramName();
