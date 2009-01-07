@@ -3,7 +3,7 @@
 # Copyright (c) 2008 Taschek Joerg - behaveu@gmail.com
 #  Program is under GPL
 #
-# Version 1.0a 30.09.2008 - comments are currently just in german
+# Version 1.1a 30.09.2008 - comments are currently just in german
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
@@ -31,10 +31,8 @@
 #ifdef __linux__
 	#include <termios.h>
 	#include <unistd.h>
-	//#include <regex.h>
 #else
 	#include <conio.h>
-	//#include "regex/include/regex.h"
 #endif
 
 
@@ -47,7 +45,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "1.0a"
+#define VERSION "1.1a"
 
 
 char* LOGFILE = NULL;
@@ -67,7 +65,7 @@ void log(int level, const char* str,...)
 	if(logging && level <= LOG_LEVEL)
 	{
 		va_list ap;
-		char *tmp = (char*) malloc(25 * sizeof(char));
+		char tmp[26];
 		time_t now;
 		time(&now);
 		sprintf(tmp,"%.24s: ",ctime(&now));
@@ -92,6 +90,38 @@ void log(int level, const char* str,...)
 		}
 		//delete(tmp);
 	}
+}
+
+/**
+** Funktion ersetzt ein Leerzeichen durch ein geschütztes Leerzeichen zwischen Klammern um so das Tokenizer Verfahren
+** nicht zu gefährden
+*/
+char* replaceSpace(char *string)
+{
+	if(string != NULL)
+	{
+		char *ret = (char*) malloc(strlen(string) * sizeof(char));
+		bool opened = false;
+		for(int x = 0; x != strlen(string); x++)
+		{
+			if(!opened && (string[x] == '(' || string[x] == '[' || string[x] == '{' || string[x] == '<' || string[x] == '\'' || string[x] == '\"'))
+				opened = true;
+			else if(opened && (string[x] == ')' || string[x] ==  ']' || string[x] == '}' || string[x] == '>' || string[x] == '\'' || string[x] == '\"'))
+				opened = false;
+			if(opened && string[x] == ' ')
+			{
+				ret[x] = (char)255; //geschütztes Leerzeichen, sodaß trotzdem eines angezeigt wird, aber bei der Abfrage nicht zutrifft
+			}
+			else
+			{
+				ret[x] = string[x];
+			}
+		}
+		ret[x] = '\0';
+		delete(string);
+		return ret;
+	}
+	return string;
 }
 
 
@@ -207,7 +237,7 @@ void banip(User * user)
 }
 
 /**
-** Funtion geht die Liste der Bans durch und released diese dann und setzt den Counter zurueck
+** Funktion geht die Liste der Bans durch und released diese dann und setzt den Counter zurueck
 */
 void releaseBans()
 {
@@ -324,7 +354,6 @@ char* parseItemFromLine(char *line, int itemCount)
 	}catch(...)
 	{
 		log(0, "Error fetching item: %d from line: %s", itemCount, line);
-
 	}
 	return NULL;
 }
@@ -460,8 +489,8 @@ char *replace_str(char *str, char *orig, char *rep)
   strncpy(buffer, str, p-str); // Copy characters from 'str' start to 'orig' st$
   buffer[p-str] = '\0';
 
-  sprintf(buffer+(p-str), "%s%s", rep, p+strlen(orig));
-
+  sprintf(buffer+(p-str), "%s%s", rep, p+strlen(orig));	
+  delete(orig);
   return buffer;
 }
 
@@ -730,6 +759,7 @@ int main(int argc, char *argv[])
 					Programs* prog = isRegisteredProgram(line);
 					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
 					{
+						line = replaceSpace(line); //wandelt die Leerzeichen in Paareinträgen (sind Einträge unter ',",(,[,{) in (char)255 um sodaß das Tokening funktioniert
 						bool error = false;
 						//todo look for auth succeded values to reset cnt value
 						if(prog->isErrorOrSuccess(line, &error) && error)
