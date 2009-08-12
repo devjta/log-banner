@@ -62,7 +62,7 @@ int START_FROM_TOKEN = 3; //Bei welchem Token man anfängt das Syslog auszuwerten
 */
 void log(int level, const char* str,...)
 {
-	if(logging && level <= LOG_LEVEL)
+	if(logging && level <= LOG_LEVEL && str != NULL)
 	{
 		va_list ap;
 		char tmp[26];
@@ -219,6 +219,21 @@ void __sleep(long millis)
 #endif
 }
 
+/**
+** Function checks if it is a number or a string
+*/
+bool isNumber(char * str)
+{
+	if(str == NULL)
+		return false;
+	for(int x = 0; x != strlen(str); x++)
+	{
+		if(str[x] < '0' || str[x] > '9')
+			return false;
+	}
+	return true;
+}
+
 
 /**
 ** Funktion bannt eine IP
@@ -359,6 +374,64 @@ char* parseItemFromLine(char *line, int itemCount)
 	return NULL;
 }
 
+/**
+** Function gives back the next entry (until a space) after the first occurence in the string ( + first space if not added)
+** 
+*/
+char* parseItemFromLineTxt(char *line, char *searchFor)
+{
+	try{
+		if(line != NULL && searchFor != NULL)
+		{
+			 char *pSearchBuffer = strdup(searchFor);
+   			 char *pCurrentToken=pSearchBuffer;
+			 char *pNextToken = NULL;
+			 const char *pSeparator = "||";
+ 
+			 while (pCurrentToken != NULL) 
+			 {
+				pNextToken = strstr(pCurrentToken,pSeparator);
+				if ( pNextToken != NULL ) {
+					*pNextToken='\0';
+					pNextToken += strlen(pSeparator);
+				}
+				//printf("\nSUCHE NACH: %s", pCurrentToken);
+				char* tmpRes = strstr(line, pCurrentToken);
+				if(tmpRes != NULL)
+				{
+					//printf("\nGEFUNDEN: %s" , tmpRes);
+					int position = tmpRes - line;
+					tmpRes = line + position + strlen(pCurrentToken);
+					int buffer = 0, start = 0;
+					for(int x = 0; x != strlen(tmpRes); x++)
+					{
+						if(tmpRes[x] == ' ' || tmpRes[x] == '\t' || tmpRes[x] == '\n')
+						{
+							if(x != 0)
+								break;
+							else start++;
+						}
+						else
+							buffer++;
+					}
+					if(buffer > 0)
+					{
+						buffer++;
+						char* ret = (char*)malloc(buffer * sizeof(char));
+						strncpy(ret, tmpRes + start, buffer);
+						return ret;
+					}
+				}
+				pCurrentToken = pNextToken;
+			 }
+		}
+	}catch(...)
+	{
+		log(0, "Error fetching item after: %s from line: %s", searchFor, line);
+	}
+	return NULL;
+}
+
 /*
 ** Funktion löscht "illegale" Zeichen
 */
@@ -436,7 +509,11 @@ char* parseIP(char* ip)
 char* parseUserFromLine(char *line, Programs* prog)
 {
 	try{
-		char *name = parseItemFromLine(line, prog->getUserToken());
+		char *name = NULL;
+		if(prog->getUserToken() != -1)
+			name = parseItemFromLine(line, prog->getUserToken());
+		else
+			name = parseItemFromLineTxt(line, prog->getUserTokenTxt());
 		if(name != NULL && strlen(name) > 0)
 			name = replaceIllegal(name, prog);
 
@@ -457,7 +534,11 @@ char* parseUserFromLine(char *line, Programs* prog)
 char* parseIPFromLine(char *line, Programs *prog)
 {
 	try{
-		char *ip = parseItemFromLine(line, prog->getIpToken());
+		char *ip = NULL;
+		if(prog->getIpToken() != -1)
+			ip = parseItemFromLine(line, prog->getIpToken());
+		else
+			ip = parseItemFromLineTxt(line, prog->getIpTokenTxt());
 		if(ip != NULL && strlen(ip) > 0)
 		{
 			char *tmp = parseIP(ip);
@@ -632,20 +713,36 @@ bool readConfig(char *file)
 				{
 					int number = 1, token = -1;
 					sscanf(tmp + 14, "%d", &number);
-					Programs *prog = getProgram(number);	
-					sscanf(tmp + 16, "%d", &token);
-					log(3, "USERPARSE %d", token);
-					prog->setUserToken(token);
+					Programs *prog = getProgram(number);
+					if(isNumber(tmp + 16))
+					{
+						sscanf(tmp + 16, "%d", &token);
+						log(3, "USERPARSE %d", token);
+						prog->setUserToken(token);
+					}
+					else
+					{
+						prog->setUserTokenTxt(strdup(tmp + 16));
+						log(3, "USERPARSETXT %s", prog->getUserTokenTxt());
+					}
 				}
 				tmp = strstr(str, "prog_ipparse");
 				if(tmp != NULL && strlen(tmp) > 14)
 				{
 					int number = 1, token = -1;
 					sscanf(tmp + 12, "%d", &number);
-					Programs *prog = getProgram(number);	
-					sscanf(tmp + 14, "%d", &token);
-					log(3, "IPPARSE %d", token);
-					prog->setIpToken(token);
+					Programs *prog = getProgram(number);
+					if(isNumber(tmp + 14))
+					{
+						sscanf(tmp + 14, "%d", &token);
+						log(3, "IPPARSE %d", token);
+						prog->setIpToken(token);
+					}
+					else
+					{
+						prog->setIpTokenTxt(strdup(tmp + 14));
+						log(3, "IPPARSETXT %s", prog->getIpTokenTxt());
+					}
 				}
 				tmp = strstr(str, "prog_errorAttempt");
 				if(tmp != NULL && strlen(tmp) > 19)
@@ -699,6 +796,11 @@ bool readConfig(char *file)
 */
 int main(int argc, char *argv[])
 {
+	printf("\nGEFUNDEN: %s", parseItemFromLineTxt("LINE WURST", "LINE||SEPP"));
+	printf("\nGEFUNDEN: %s", parseItemFromLineTxt("SEPP WURST", "LINE||SEPP"));
+
+	if(true)
+		return 1;
 	#ifdef __linux__
 		LOGFILE = (char*)malloc(35);
 		sprintf(LOGFILE,"/tmp/syslog.log");
