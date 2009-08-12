@@ -102,7 +102,8 @@ char* replaceSpace(char *string)
 	{
 		char *ret = (char*) malloc(strlen(string) * sizeof(char));
 		bool opened = false;
-		for(int x = 0; x != strlen(string); x++)
+		int x = 0;
+		for(; x != strlen(string); x++)
 		{
 			if(!opened && (string[x] == '(' || string[x] == '[' || string[x] == '{' || string[x] == '<' || string[x] == '\'' || string[x] == '\"'))
 				opened = true;
