@@ -42,11 +42,32 @@ Programs::~Programs()
 		delete(removeChars);
 }
 
+char* Programs::getIpTokenTxt()
+{
+	return ipStart; 
+}
 
+
+char* Programs::getUserTokenTxt()
+{
+	return userStart; 
+}
+
+
+void Programs::setUserTokenTxt(char *tokenTxt)
+{
+	userStart = tokenTxt;
+}
+
+void Programs::setIpTokenTxt(char *tokenTxt)
+{
+	ipStart = tokenTxt;
+}
 
 bool Programs::isValidProgram()
 {
-	if(progName == NULL || strlen(progName) == 0 || ipToken == -1 || watchFor == NULL || strlen(watchFor) == 0)
+	if(progName == NULL || strlen(progName) == 0 || (ipToken == -1 && ipStart == NULL && strlen(ipStart) == 0) 
+		|| watchFor == NULL || strlen(watchFor) == 0)
 		return false;
 	return true;
 }

@@ -14,7 +14,9 @@ private:
 	char* watchFor;
 	char* releaseFor;
 	int userToken;
+	char *userStart;
 	int ipToken;
+	char *ipStart;
 	int errorAttempt;
 	int releaseBanSec;
 	char *removeChars;
@@ -36,12 +38,16 @@ public:
 	void setWatchFor(char *errorLine);
 	void setReleaseFor(char *successLine);
 	void setUserToken(int token);
+	void setUserTokenTxt(char *tokenTxt);
 	void setIpToken(int token);
+	void setIpTokenTxt(char *tokenTxt);
 	void setErrorCnt(int error);
 	void setReleaseBan(int secs);
 	void setReplaceString(char *signs);
 	int getIpToken();
+	char *getIpTokenTxt();
 	int getUserToken();
+	char *getUserTokenTxt();
 	bool isValidLine(char *line);
 	bool isErrorOrSuccess(char *line, bool *error);
 };
