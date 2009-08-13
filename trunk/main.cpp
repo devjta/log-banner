@@ -378,13 +378,15 @@ char* parseItemFromLine(char *line, int itemCount)
 ** Function gives back the next entry (until a space) after the first occurence in the string ( + first space if not added)
 ** 
 */
-char* parseItemFromLineTxt(char *line, char *searchFor)
+char* parseItemFromLineTxt(const char *line, const char *searchFor)
 {
 	try{
 		if(line != NULL && searchFor != NULL)
 		{
 			 char *pSearchBuffer = strdup(searchFor);
-   			 char *pCurrentToken=pSearchBuffer;
+   			 if(pSearchBuffer == NULL)
+				 return NULL;
+			 char *pCurrentToken = pSearchBuffer;
 			 char *pNextToken = NULL;
 			 const char *pSeparator = "||";
  
@@ -395,30 +397,69 @@ char* parseItemFromLineTxt(char *line, char *searchFor)
 					*pNextToken='\0';
 					pNextToken += strlen(pSeparator);
 				}
-				//printf("\nSUCHE NACH: %s", pCurrentToken);
-				char* tmpRes = strstr(line, pCurrentToken);
+				char *pSearchUntil = strstr(pCurrentToken, "->");
+				if(pSearchUntil != NULL) 
+				{
+					*pSearchUntil = '\0';
+					pSearchUntil += 2;
+				}
+				const char* tmpRes = strstr(line, pCurrentToken);
 				if(tmpRes != NULL)
 				{
-					//printf("\nGEFUNDEN: %s" , tmpRes);
 					int position = tmpRes - line;
 					tmpRes = line + position + strlen(pCurrentToken);
 					int buffer = 0, start = 0;
-					for(int x = 0; x != strlen(tmpRes); x++)
+					bool foundValidSign = false;
+					if(pSearchUntil == NULL)
 					{
-						if(tmpRes[x] == ' ' || tmpRes[x] == '\t' || tmpRes[x] == '\n')
+						for(int x = 0; x != strlen(tmpRes); x++)
 						{
-							if(x != 0)
-								break;
-							else start++;
+							if(tmpRes[x] == ' ' || tmpRes[x] == '\t' || tmpRes[x] == '\n')
+							{
+								if(foundValidSign)
+									break;
+								else start++;
+							}
+							else
+							{
+								foundValidSign = true;
+								buffer++;
+							}
 						}
-						else
-							buffer++;
+					}
+					else
+					{
+						char *pFoundEnd = strstr(tmpRes, pSearchUntil);
+						if(pFoundEnd != NULL)
+						{
+							buffer = (pFoundEnd - tmpRes);
+							printf("\nFOUND: %s %d [%s]", pFoundEnd, (pFoundEnd - tmpRes), tmpRes);
+
+						}
+						for(int x = 0; x != buffer; x++)
+						{
+							if(tmpRes[x] == ' ' || tmpRes[x] == '\t' || tmpRes[x] == '\n')
+								start++;
+							else
+								break;
+						}
+						for(int y = buffer - 1; y >= 0; y--)
+						{
+							printf("\nSUCHE ZEICHEN AN POS: %d %c", y, tmpRes[y]);
+							if(tmpRes[y] == ' ' || tmpRes[y] == '\t' || tmpRes[y] == '\n')
+								buffer--;
+							else
+								break;
+						}
+						buffer -= start;
 					}
 					if(buffer > 0)
 					{
-						buffer++;
-						char* ret = (char*)malloc(buffer * sizeof(char));
+						char* ret = (char*)malloc(( buffer + 1) * sizeof(char));
 						strncpy(ret, tmpRes + start, buffer);
+						ret[buffer] = '\0';
+						if(pSearchBuffer != NULL)
+							free(pSearchBuffer);
 						return ret;
 					}
 				}
@@ -796,11 +837,6 @@ bool readConfig(char *file)
 */
 int main(int argc, char *argv[])
 {
-	printf("\nGEFUNDEN: %s", parseItemFromLineTxt("LINE WURST", "LINE||SEPP"));
-	printf("\nGEFUNDEN: %s", parseItemFromLineTxt("SEPP WURST", "LINE||SEPP"));
-
-	if(true)
-		return 1;
 	#ifdef __linux__
 		LOGFILE = (char*)malloc(35);
 		sprintf(LOGFILE,"/tmp/syslog.log");
