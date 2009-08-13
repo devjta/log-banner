@@ -1,16 +1,18 @@
 /*
 #
-# Copyright (c) 2008 Taschek Joerg - behaveu@gmail.com
+# Copyright (c) 2009 Taschek Joerg - behaveu@gmail.com
 #  Program is under GPL
 #
 # Version 1.1a 30.09.2008 - comments are currently just in german
+# Versoin 2.0b 13.08.2009 - the parsing functions can now search for strings and until string. You can also add endless
+# search definitions separate with || and until sep is -> - see default log_banner.conf for details (success stil not implemented)
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
 #
 # Requirements: Linux: iptables for baning the user
 #  Windows: Windows baning is not implemented!
-# Mac OS: dunno what with mac os todo, had no time to test it yet (my macbook is at the repair center :-(   )     
+# Mac OS: dunno what with mac os todo. Havent tried it with my macbook
 # Homepage: http://code.google.com/p/log-banner/
 */
 
@@ -45,7 +47,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "1.1a"
+#define VERSION "2.0b"
 
 
 char* LOGFILE = NULL;
@@ -433,7 +435,6 @@ char* parseItemFromLineTxt(const char *line, const char *searchFor)
 						if(pFoundEnd != NULL)
 						{
 							buffer = (pFoundEnd - tmpRes);
-							printf("\nFOUND: %s %d [%s]", pFoundEnd, (pFoundEnd - tmpRes), tmpRes);
 
 						}
 						for(int x = 0; x != buffer; x++)
@@ -445,7 +446,6 @@ char* parseItemFromLineTxt(const char *line, const char *searchFor)
 						}
 						for(int y = buffer - 1; y >= 0; y--)
 						{
-							printf("\nSUCHE ZEICHEN AN POS: %d %c", y, tmpRes[y]);
 							if(tmpRes[y] == ' ' || tmpRes[y] == '\t' || tmpRes[y] == '\n')
 								buffer--;
 							else
@@ -852,12 +852,12 @@ int main(int argc, char *argv[])
 		//nur wenn der erste Parameter ein Abfrageparameter ist, dann wird die Hilfe ausgegeben, ansonsten nix
 		if(strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "--?") == 0 || strcmp(argv[1], "/?") == 0|| strcmp(argv[1], "--help") == 0)
 		{
-			printf("\n  log_banner %s (c) 2008 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file\n\n", VERSION);
+			printf("\n  log_banner %s (c) 2009 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file\n\n", VERSION);
 			return 0;
 		}
 		//geht die Parameter durch
 		else{
-			printf("\n\tlog_banner %s (c) 2008 by Taschek Joerg\n\n", VERSION);
+			printf("\n\tlog_banner %s (c) 2009 by Taschek Joerg\n\n", VERSION);
 			for(int x = 1; x != argc; x++)
 			{
 				if(!readConfig(argv[x]))
