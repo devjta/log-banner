@@ -20,6 +20,7 @@ private:
 	int errorAttempt;
 	int releaseBanSec;
 	char *removeChars;
+	bool isAnyItemInLine(char *item, char *line);
 public:
 
 	Programs();
