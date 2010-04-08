@@ -1,11 +1,12 @@
 /*
 #
-# Copyright (c) 2009 Taschek Joerg - behaveu@gmail.com
+# Copyright (c) 2010 Taschek Joerg - behaveu@gmail.com
 #  Program is under GPL
 #
 # Version 1.1a 30.09.2008 - comments are currently just in german
 # Versoin 2.0b 13.08.2009 - the parsing functions can now search for strings and until string. You can also add endless
 # search definitions separate with || and until sep is -> - see default log_banner.conf for details (success stil not implemented)
+# Version 2.1b 08.04.2010 - debug infos and find items are also separeted via ||
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
@@ -47,7 +48,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "2.0b"
+#define VERSION "2.1b"
 
 
 char* LOGFILE = NULL;
@@ -320,6 +321,7 @@ Programs* isRegisteredProgram(char *line)
 		for(programsIterator = programs.begin(); programsIterator != programs.end(); programsIterator++)
 	    {
 			//wenn gültiges Program == namen + iptoken + failString
+			//log(3, "ProgramName: %s  valid: %d  start: %s  line: %s", (*programsIterator)->getProgramName(), (*programsIterator)->isValidProgram(), (*programsIterator)->getLineStart(), line);
 			if( (*programsIterator)->isValidProgram() && 
 				memcmp((*programsIterator)->getLineStart(),line, strlen((*programsIterator)->getLineStart())) == 0 &&
 				(*programsIterator)->isValidLine(line))
@@ -837,14 +839,14 @@ bool readConfig(char *file)
 */
 int main(int argc, char *argv[])
 {
-	#ifdef __linux__
+	/*#ifdef __linux__
 		LOGFILE = (char*)malloc(35);
 		sprintf(LOGFILE,"/tmp/syslog.log");
 	#else
 		LOGFILE = (char*)malloc(35);
 		sprintf(LOGFILE,"E:\\syslog.log");
 		_tzset();
-	#endif
+	#endif*/
 
 	//wenn argc > 1 ist, dann sind parameter uebergeben worden
 	if(argc > 1)
@@ -852,12 +854,12 @@ int main(int argc, char *argv[])
 		//nur wenn der erste Parameter ein Abfrageparameter ist, dann wird die Hilfe ausgegeben, ansonsten nix
 		if(strcmp(argv[1], "-?") == 0 || strcmp(argv[1], "--?") == 0 || strcmp(argv[1], "/?") == 0|| strcmp(argv[1], "--help") == 0)
 		{
-			printf("\n  log_banner %s (c) 2009 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file\n\n", VERSION);
+			printf("\n  log_banner %s (c) 2010 by Taschek Joerg (Report bugs to ICQ: 83043730)\n\n  Usage: log_banner config_file\n\n", VERSION);
 			return 0;
 		}
 		//geht die Parameter durch
 		else{
-			printf("\n\tlog_banner %s (c) 2009 by Taschek Joerg\n\n", VERSION);
+			printf("\n\tlog_banner %s (c) 2010 by Taschek Joerg\n\n", VERSION);
 			for(int x = 1; x != argc; x++)
 			{
 				if(!readConfig(argv[x]))
@@ -898,7 +900,8 @@ int main(int argc, char *argv[])
 					Programs* prog = isRegisteredProgram(line);
 					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
 					{
-						line = replaceSpace(line); //wandelt die Leerzeichen in Paareinträgen (sind Einträge unter ',",(,[,{) in (char)255 um sodaß das Tokening funktioniert
+						//line = replaceSpace(line); //wandelt die Leerzeichen in Paareinträgen (sind Einträge unter ',",(,[,{) in (char)255 um sodaß das Tokening funktioniert
+						//log(3, "Valid program found: %s", line);
 						bool error = false;
 						//todo look for auth succeded values to reset cnt value
 						if(prog->isErrorOrSuccess(line, &error) && error)

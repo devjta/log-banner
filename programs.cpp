@@ -4,7 +4,7 @@
 #  Program is under GPL
 #
 */
-
+#include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include "programs.h"
@@ -177,11 +177,11 @@ bool Programs::isValidLine(char *line)
 			return false;
 		if(!isValidProgram())
 			return false;
-		if(strstr(line, watchFor))
+		if(isAnyItemInLine(watchFor, line))
 			return true;
 		if(releaseFor == NULL)
 			return false;
-		if(strstr(line, releaseFor))
+		if(isAnyItemInLine(releaseFor, line))
 			return true;
 	}
 	catch(...)
@@ -189,19 +189,43 @@ bool Programs::isValidLine(char *line)
 	return false;
 }
 
+bool Programs::isAnyItemInLine(char *item, char *line)
+{
+	char *pSearchBuffer = strdup(item);
+   	if(pSearchBuffer == NULL)
+		return false;
+	char *pCurrentToken = pSearchBuffer;
+	char *pNextToken = NULL;
+	const char *pSeparator = "||";
+	while (pCurrentToken != NULL) 
+	{
+		pNextToken = strstr(pCurrentToken,pSeparator);
+		if ( pNextToken != NULL ) {
+			*pNextToken='\0';
+			pNextToken += strlen(pSeparator);
+		}
+		if(strstr(line, pCurrentToken) != NULL)
+		{
+			return true;
+		}
+		pCurrentToken = pNextToken;
+	}
+	return false;
+}
+
 
 bool Programs::isErrorOrSuccess(char *line, bool *error)
 {
-	if(isValidLine(line))
+	//if(isValidLine(line))
 	{
 		try{
-			if(strstr(line, watchFor))
+			if(isAnyItemInLine(watchFor, line))
 				*error = true;
 			else 
 			{
 				if(releaseFor == NULL)
 					return false;
-				if(strstr(line, releaseFor))
+				if(isAnyItemInLine(releaseFor, line))
 					*error = false;
 			}
 			return true;
