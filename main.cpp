@@ -7,6 +7,7 @@
 # Versoin 2.0b 13.08.2009 - the parsing functions can now search for strings and until string. You can also add endless
 # search definitions separate with || and until sep is -> - see default log_banner.conf for details (success stil not implemented)
 # Version 2.1b 08.04.2010 - debug infos and find items are also separeted via ||
+# Version 2.2RC 09.04.2010 - unbanning loop will take so long, until iptables 
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
@@ -48,7 +49,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "2.1b"
+#define VERSION "2.2RC"
 
 
 char* LOGFILE = NULL;
@@ -272,10 +273,13 @@ void releaseBans()
 			{
 				#ifdef __linux__
 					char UNBAN[200];
-					sprintf(UNBAN, "iptables -D INPUT -p tcp -s %s -j DROP", (*usersIterator)->getIp());
-					system(UNBAN);
-					sprintf(UNBAN, "iptables -D INPUT -p udp -s %s -j DROP", (*usersIterator)->getIp());
-					system(UNBAN);
+					int ret = 1;
+					do{
+						sprintf(UNBAN, "iptables -D INPUT -p tcp -s %s -j DROP 2>/dev/null", (*usersIterator)->getIp());
+						ret = system(UNBAN); //gets the return code - 1 = ip not found == already removed
+						sprintf(UNBAN, "iptables -D INPUT -p udp -s %s -j DROP 2>/dev/null", (*usersIterator)->getIp());
+						ret &= system(UNBAN); //if this one is 1 = ip not found == already removed, but if previous
+					}while(ret == 0);
 				#else
 					log(0, "Unbanning users in windows is not implemented!!");
 				#endif
