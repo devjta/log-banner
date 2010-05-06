@@ -21,6 +21,7 @@
 
 #include <list>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <malloc.h>
 #include <sys/types.h>
@@ -32,20 +33,20 @@
 //#include "programs.h" // not needed because user.h includes programs.h
 
 
-#ifdef __linux__
+#ifdef _WIN32
+	#include <conio.h>
+#else
 	#include <termios.h>
 	#include <unistd.h>
-#else
-	#include <conio.h>
 #endif
 
 
 
 //verschiedene Definitionen von den LogDateien und den Jumpern
-#ifdef __linux__
- #define JUMP 1
-#else
+#ifdef _WIN32
  #define JUMP 2
+#else
+ #define JUMP 1
 #endif
 
 //allgemeine Defintionen
@@ -69,10 +70,10 @@ void log(int level, const char* str,...)
 	if(logging && level <= LOG_LEVEL && str != NULL)
 	{
 		va_list ap;
-		char tmp[26];
+		char tmp[28];
 		time_t now;
 		time(&now);
-		sprintf(tmp,"%.24s: ",ctime(&now));
+		sprintf(tmp,"%.24s: \0",ctime(&now));
 		//Datei mitloggen
 		if (logger != NULL)
 		{
@@ -94,39 +95,6 @@ void log(int level, const char* str,...)
 		}
 		//delete(tmp);
 	}
-}
-
-/**
-** Funktion ersetzt ein Leerzeichen durch ein geschütztes Leerzeichen zwischen Klammern um so das Tokenizer Verfahren
-** nicht zu gefährden
-*/
-char* replaceSpace(char *string)
-{
-	if(string != NULL)
-	{
-		char *ret = (char*) malloc(strlen(string) * sizeof(char));
-		bool opened = false;
-		int x = 0;
-		for(; x != strlen(string); x++)
-		{
-			if(!opened && (string[x] == '(' || string[x] == '[' || string[x] == '{' || string[x] == '<' || string[x] == '\'' || string[x] == '\"'))
-				opened = true;
-			else if(opened && (string[x] == ')' || string[x] ==  ']' || string[x] == '}' || string[x] == '>' || string[x] == '\'' || string[x] == '\"'))
-				opened = false;
-			if(opened && string[x] == ' ')
-			{
-				ret[x] = (char)255; //geschütztes Leerzeichen, sodaß trotzdem eines angezeigt wird, aber bei der Abfrage nicht zutrifft
-			}
-			else
-			{
-				ret[x] = string[x];
-			}
-		}
-		ret[x] = '\0';
-		delete(string);
-		return ret;
-	}
-	return string;
 }
 
 
@@ -179,7 +147,9 @@ char* removeItemsFromLine(char *line, int itemCount)
 */
 int __getch()
 {
-#ifdef __linux__
+#ifdef _WIN32
+	return _getch();
+#else
 	struct termios oldt,newt;
 	int ch;
 	tcgetattr( STDIN_FILENO, &oldt );
@@ -189,8 +159,6 @@ int __getch()
 	ch = getchar();
 	tcsetattr( STDIN_FILENO, TCSANOW, &oldt );
 	return ch;
-#else
-    return _getch();
 #endif
 }
 
@@ -200,13 +168,13 @@ int __getch()
 */
 long _fileSize(const char* file)
 {
-#ifdef __linux__
-	struct stat buf;
-	stat(file, &buf);
-	return buf.st_size;
-#else
+#ifdef _WIN32
 	struct _stat buf;
 	_stat(file, &buf);
+	return buf.st_size;
+#else
+	struct stat buf;
+	stat(file, &buf);
 	return buf.st_size;
 #endif 
 }
@@ -216,10 +184,10 @@ long _fileSize(const char* file)
 */
 void __sleep(long millis)
 {
-#ifdef __linux__
-	usleep(millis * 1000); //usleep schlaeft mikrosekunden
-#else
+#ifdef _WIN32
 	_sleep(millis);
+#else
+	usleep(millis * 1000); //usleep schlaeft mikrosekunden
 #endif
 }
 
@@ -245,14 +213,14 @@ bool isNumber(char * str)
 void banip(User * user)
 {
 	log(1, "BAN this ass with IP: %s", user->getIp());
-#ifdef __linux__
+#ifdef _WIN32
+	log(0, "Banning users in windows is not implemented!!");
+#else
 	char BAN[200];
 	sprintf(BAN, "iptables -I INPUT -p tcp -s %s -j DROP", user->getIp());
 	system(BAN);
 	sprintf(BAN, "iptables -I INPUT -p udp -s %s -j DROP", user->getIp());
-	system(BAN);
-#else
-	log(0, "Banning users in windows is not implemented!!");	
+	system(BAN);		
 #endif
 }
 
@@ -271,7 +239,9 @@ void releaseBans()
 			log(1, "UNBAN user (%s) with IP: %s", (*usersIterator)->getName(),(*usersIterator)->getIp());
 			//if((*usersIterator)->toMuchErrorAttempts()) //nur wenn überhaupt zuoft zugegriffen wurde, kann man den unbannen
 			{
-				#ifdef __linux__
+				#ifdef _WIN32
+					log(0, "Unbanning users in windows is not implemented!!");
+				#else
 					char UNBAN[200];
 					int ret = 1;
 					do{
@@ -280,8 +250,6 @@ void releaseBans()
 						sprintf(UNBAN, "iptables -D INPUT -p udp -s %s -j DROP 2>/dev/null", (*usersIterator)->getIp());
 						ret &= system(UNBAN); //if this one is 1 = ip not found == already removed, but if previous
 					}while(ret == 0);
-				#else
-					log(0, "Unbanning users in windows is not implemented!!");
 				#endif
 			}
 			(*usersIterator)->resetCnt(); //resets the cnt
@@ -843,13 +811,13 @@ bool readConfig(char *file)
 */
 int main(int argc, char *argv[])
 {
-	/*#ifdef __linux__
-		LOGFILE = (char*)malloc(35);
-		sprintf(LOGFILE,"/tmp/syslog.log");
-	#else
+	/*#ifdef _WIN32
 		LOGFILE = (char*)malloc(35);
 		sprintf(LOGFILE,"E:\\syslog.log");
 		_tzset();
+	#else
+		LOGFILE = (char*)malloc(35);
+		sprintf(LOGFILE,"/tmp/syslog.log");		
 	#endif*/
 
 	//wenn argc > 1 ist, dann sind parameter uebergeben worden
@@ -904,8 +872,7 @@ int main(int argc, char *argv[])
 					Programs* prog = isRegisteredProgram(line);
 					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
 					{
-						//line = replaceSpace(line); //wandelt die Leerzeichen in Paareinträgen (sind Einträge unter ',",(,[,{) in (char)255 um sodaß das Tokening funktioniert
-						//log(3, "Valid program found: %s", line);
+						log(3, "Valid program found: %s", line);
 						bool error = false;
 						//todo look for auth succeded values to reset cnt value
 						if(prog->isErrorOrSuccess(line, &error) && error)
