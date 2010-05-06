@@ -8,6 +8,7 @@
 # search definitions separate with || and until sep is -> - see default log_banner.conf for details (success stil not implemented)
 # Version 2.1b 08.04.2010 - debug infos and find items are also separeted via ||
 # Version 2.2RC 09.04.2010 - unbanning loop will take so long, until iptables 
+# Version 2.3RC 06.05.2010 - some fixes on memory leaks
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
@@ -50,7 +51,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "2.2RC"
+#define VERSION "2.3RC"
 
 
 char* LOGFILE = NULL;
