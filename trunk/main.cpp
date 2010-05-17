@@ -9,6 +9,7 @@
 # Version 2.1b 08.04.2010 - debug infos and find items are also separeted via ||
 # Version 2.2RC 09.04.2010 - unbanning loop will take so long, until iptables 
 # Version 2.3RC 06.05.2010 - some fixes on memory leaks
+# Version 2.4RC 17.05.2010 - bugfixes for memory leaks and parsing errors
 # 
 # Description: Program reads new lines from any log file and searches for any program names 
 # after error count reached it bans the user via iptables and unbans him after some time
@@ -51,7 +52,7 @@
 #endif
 
 //allgemeine Defintionen
-#define VERSION "2.3RC"
+#define VERSION "2.4RC"
 
 
 char* LOGFILE = NULL;
@@ -102,7 +103,7 @@ void log(int level, const char* str,...)
 /**
 **  
 */
-char* removeItemsFromLine(char *line, int itemCount)
+char* removeItemsFromLine(char line[], int itemCount)
 {
 	if(itemCount <= 0)
 		return line;
@@ -110,15 +111,23 @@ char* removeItemsFromLine(char *line, int itemCount)
 		if(line != NULL)
 		{
 			char *ptr = strchr(line,' ');
-			int result = ptr - line + 1;
-			int	x = 0;
-			while(x < itemCount)
+			int result = 0;
+			if(ptr != NULL)
 			{
-				ptr = strchr(line + result,' ');
 				result = ptr - line + 1;
-				x++;
+				int	x = 1;
+				while(x < itemCount && ptr != NULL && strlen(ptr) > 0)
+				{
+					ptr = strchr(line + result,' ');
+					if(ptr == NULL)
+					{
+						return line;
+					}
+					result = ptr - line + 1;
+					x++;
+				}
+				result = ptr - line;
 			}
-			result = ptr - line;
 			int until = strlen(line) + 1;
 			char* ret = (char*)malloc((until - result) * sizeof(char));
 			strncpy(ret, line + result + 1, until - result - 2);
@@ -576,7 +585,7 @@ char* parseIPFromLine(char *line, Programs *prog)
 /**
 ** Funktion ersetzt String im String
 */
-char *replace_str(char *str, char *orig, char *rep)
+char* replace_str(char *str, char *orig, char *rep)
 {
   static char buffer[4096];
   char *p;
@@ -588,7 +597,8 @@ char *replace_str(char *str, char *orig, char *rep)
   buffer[p-str] = '\0';
 
   sprintf(buffer+(p-str), "%s%s", rep, p+strlen(orig));	
-  delete(orig);
+  //delete(orig);
+  //free (orig);
   return buffer;
 }
 
@@ -843,7 +853,8 @@ int main(int argc, char *argv[])
 	else //fehler
 	{
 		log(0, "You need to specify a config file!");
-		return -1; 
+		//if(!readConfig("/tmp/log-banner/log_banner.conf"))
+			return -1; 
 	}
 	//holt einfach mal die aktuelle Uhrzeit
 	time_t ltime;
@@ -867,8 +878,12 @@ int main(int argc, char *argv[])
 				{
 					fileSize = tmpSize;
 					fscanf(f, "%[^\n]", str); //liest bis zum naechsten Linebreak == 1 Zeile aus
-					char* line = removeItemsFromLine(str, START_FROM_TOKEN); //removed den Zeitstempel den keiner braucht
-					line = replace_str(line, "  ", " "); //replace 2 spaces with 1 space
+					char *line = strdup(str);
+					//log(3, "DUP DUP %s == %s", str, line);
+					line = replace_str(line, "  ", " ");  //replace 2 spaces with 1 space
+					//log(3, "AFTER REPLACE! %s", line);
+					line = removeItemsFromLine(line, START_FROM_TOKEN); //removed den Zeitstempel den keiner braucht
+					//log(3, "AFTER REMOVE: %s", line);
 					//sucht nach der FAIL Antwort
 					Programs* prog = isRegisteredProgram(line);
 					if(prog != NULL && prog->isValidLine(line)) //wenn gefunden
@@ -904,6 +919,7 @@ int main(int argc, char *argv[])
 						else
 							log(0, "Not able to parse IP from: %s with program: %s", str, prog->getProgramName());
 					}
+					delete(line);
 					fseek(f, JUMP, SEEK_CUR); //springt immer um den linebreak weiter				
 				}while(!feof( f ) && ftell(f) < fileSize ); //nur solange bis file ende oder eben die position groesser als die datei ist
 			}
